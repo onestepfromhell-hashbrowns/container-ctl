@@ -308,9 +308,11 @@ class TestQuadletExit125Guardrail:
             volumes=[{"host_path": str(missing_vol), "container_path": "/var/lib/data"}],
         )
 
-        unit_text = _render_container_unit(action, f"docker.io/db@{SAMPLE_SHA256}", project="demo")
-        assert not missing_vol.exists(), "Quadlet 生成器不應暗中呼叫 mkdir！"
-        assert f"Volume={missing_vol}:/var/lib/data:rw" in unit_text
+        with patch("container_ctl.volume_resolver.ALLOWED_MOUNT_READ_ROOTS", (tmp_path.resolve(),)), \
+             patch("container_ctl.volume_resolver.ALLOWED_AUTO_CREATE_ROOTS", (tmp_path.resolve(),)):
+            unit_text = _render_container_unit(action, f"docker.io/db@{SAMPLE_SHA256}", project="demo")
+            assert not missing_vol.exists(), "Quadlet 生成器不應暗中呼叫 mkdir！"
+            assert f"Volume={missing_vol}:/var/lib/data:rw" in unit_text
 
 
 # ── TICKET-VOL-03: Deploy CLI 整合測試 ────────────────────────────────────────
