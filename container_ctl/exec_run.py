@@ -28,7 +28,7 @@ _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 _SESSION_REF = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _MEM = re.compile(r"[1-9][0-9]*[bkmg]", re.I)
 _VAR = re.compile(r"[A-Z_][A-Z0-9_]{0,63}")
-_TOKEN = re.compile(r"[\x21\x23-\x7e]+")      # visible ASCII without ': the value is written inside single quotes in the env file
+_TOKEN = re.compile(r"[\x21-\x26\x28-\x7e]+")      # visible ASCII without ': the value is written inside single quotes in the env file
 REDACTED = "[REDACTED]"
 MIN_SECRET_LEN = 8
 MIN_JSON_SECRET_LEN = 16
@@ -270,7 +270,7 @@ def validate(spec: Mapping, read_file: Optional[Callable[[str], bytes]] = None) 
         if ws["mode"] == "ro":
             hp = ws["host_path"]
             if not isinstance(hp, str) or not hp.startswith("/") or _MOUNT_UNSAFE.search(hp) \
-                    or os.path.realpath(hp) in FORBIDDEN_RW_ROOTS:
+                    or ".." in hp.split("/") or os.path.realpath(hp) in FORBIDDEN_RW_ROOTS:
                 raise ExecSpecInvalid("ro host_path must be an absolute path outside system roots")
 
     lim = spec.get("limits") or {}
@@ -284,10 +284,12 @@ def validate(spec: Mapping, read_file: Optional[Callable[[str], bytes]] = None) 
             raise ExecSpecInvalid("limits.idle_timeout_s must be a positive integer")
 
     for m in spec.get("mounts_ro", []):
-        if not str(m.get("dst", "")).startswith("/opt/ext/") or ".." in m["dst"].split("/") or not str(m.get("src", "")).startswith("/"):
-            raise ExecSpecInvalid("mounts_ro: absolute src, dst under /opt/ext/")
-        if _MOUNT_UNSAFE.search(m["src"]) or _MOUNT_UNSAFE.search(m["dst"]):
-            raise ExecSpecInvalid("mounts_ro: src/dst must not contain ':', ',' or control characters")
+        src = str(m.get("src", ""))
+        dst = str(m.get("dst", ""))
+        if not dst.startswith("/opt/ext/") or ".." in dst.split("/") or not src.startswith("/") or ".." in src.split("/"):
+            raise ExecSpecInvalid("mounts_ro: absolute src, dst under /opt/ext/, no '..'")
+        if _MOUNT_UNSAFE.search(src) or _MOUNT_UNSAFE.search(dst) or os.path.realpath(src) in FORBIDDEN_RW_ROOTS:
+            raise ExecSpecInvalid("mounts_ro: src/dst must not contain ':', ',' or control characters or system roots")
     roots = [r for r in os.environ.get("CONTAINER_CTL_EXEC_CRED_ROOTS", "").split(":") if r]
     for f in [*spec.get("credential_files", []), *spec.get("env_secrets", [])]:
         _check_src(f.get("src"), roots)
@@ -1074,6 +1076,8 @@ def session_close(
     runner: Optional[Runner] = None,
     state_root: Optional[str] = None,
 ) -> Dict:
+    if not isinstance(exec_id, str) or not _EXEC_ID.fullmatch(exec_id):
+        return {"ok": False, "error": f"invalid exec_id: {exec_id!r}"}
     run = runner or default_runner
     root = state_root or _default_state_root()
     sess_dir = os.path.join(root, exec_id)

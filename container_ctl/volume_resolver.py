@@ -24,15 +24,19 @@ ALLOWED_AUTO_CREATE_ROOTS = (
 # 嚴格禁止寫入/自動建立的保護路徑
 FORBIDDEN_WRITE_PATHS = tuple(Path(p).resolve() for p in paths.FORBIDDEN_WRITE_PATHS)
 
-_PRIVATE_KEY_SUFFIXES = (".key", ".pem")
+_PRIVATE_KEY_SUFFIXES = (".key", ".pem", ".pkcs8", ".p12", ".pfx", "_rsa", "_ed25519")
+_ALLOWED_VOLUME_OPTIONS = frozenset({"ro", "rw", "z", "Z", "U", "idmap", "rprivate", "private", "rslave", "slave", "rshared", "shared"})
 
 
 def _is_ro_file_mount_allowed(path: Path, options: str) -> bool:
-    """單檔掛載條件：一般檔案（resolve 後）、options 含 ro、檔名不是私鑰（*.key／*.pem）。"""
+    """單檔掛載條件：一般檔案（resolve 後）、options 含 ro、檔名不是私鑰（*.key／*.pem 等）。"""
+    opts = set(str(options).split(","))
+    if not opts.issubset(_ALLOWED_VOLUME_OPTIONS):
+        return False
     return (
         path.is_file()
-        and "ro" in str(options).split(",")
-        and not path.name.lower().endswith(_PRIVATE_KEY_SUFFIXES)
+        and "ro" in opts
+        and not any(path.name.lower().endswith(s) for s in _PRIVATE_KEY_SUFFIXES)
     )
 
 

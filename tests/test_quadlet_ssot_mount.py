@@ -87,13 +87,15 @@ class TestQuadletSSOTMount(unittest.TestCase):
                 "options": "ro",
             }
         ]
-        rendered = quadlet_gen._render_container_unit(
-            action,
-            image="localhost/app:dev",
-            project="TestProj",
-            version="v1.0.0",
-            extra_volumes=extra_vols,
-        )
+        with unittest.mock.patch("container_ctl.volume_resolver.ALLOWED_MOUNT_READ_ROOTS", (Path("/srv/site"), Path("/var/opt/container-ctl"))), \
+             unittest.mock.patch("container_ctl.volume_resolver.ALLOWED_AUTO_CREATE_ROOTS", (Path("/srv/site/projects"),)):
+            rendered = quadlet_gen._render_container_unit(
+                action,
+                image="localhost/app:dev",
+                project="TestProj",
+                version="v1.0.0",
+                extra_volumes=extra_vols,
+            )
 
         # 驗證包含了 ms-playwright 掛載
         self.assertIn("Volume=/var/opt/container-ctl/cache/ms-playwright:/opt/ext/fhs/browsers/ms-playwright:ro", rendered)

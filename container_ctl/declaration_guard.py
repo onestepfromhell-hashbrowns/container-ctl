@@ -54,7 +54,7 @@ def _publish_exceptions(cfg: dict) -> tuple[set[str], list[str]]:
     return allowed, errors
 
 
-_PROJECT_SOURCE_MARKERS = ("/.worktrees/", "/.git_repos/")
+_PROJECT_SOURCE_MARKERS = ("/.worktrees/", "/.git_repos/", "/worktrees/", "/git-repos/")
 
 
 def _prod_source_mounts(cfg: dict) -> list[str]:
@@ -74,7 +74,7 @@ def _config_repo_mounts(cfg: dict) -> list[str]:
     return [
         str(vol.get("host_path"))
         for vol in cfg.get("volumes", []) or []
-        if isinstance(vol, dict) and "/.config_repos" in (str(vol.get("host_path") or "") + "/")
+        if isinstance(vol, dict) and any(m in (str(vol.get("host_path") or "") + "/") for m in ("/.config_repos/", "/config-repos/"))
     ]
 
 
@@ -111,7 +111,7 @@ def check_unknown_keys(cfg: dict) -> list[str]:
     return out
 
 
-_SECRET_KEY_WORDS = ("PASSWORD", "PASSWD", "SECRET", "TOKEN", "PRIVATE_KEY", "API_KEY")
+_SECRET_KEY_WORDS = ("PASSWORD", "PASSWD", "SECRET", "TOKEN", "PRIVATE_KEY", "API_KEY", "DB_PASS")
 _SECRET_SAFE_SUFFIXES = ("_FILE", "_PATH", "_DIR", "_URL_FILE")
 _URL_USERINFO_RE = re.compile(r"://[^/\s:@]+:[^/\s@]+@")
 _FHS_PREFIXES = ("/opt/", "/etc/opt/", "/var/opt/", "/run/", "/var/log/", "/var/cache/", "/var/lib/", "/tmp/")

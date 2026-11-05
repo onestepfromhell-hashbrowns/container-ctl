@@ -303,7 +303,7 @@ def _render_container_unit(
     all_volumes = action.config.get("volumes", [])
     has_multiple_vols = len(all_volumes) > 1
     for vol in all_volumes:
-        resolved, _ = resolve_volume_mount(
+        resolved, err = resolve_volume_mount(
             vol=vol,
             project=project,
             service_name=action.name,
@@ -313,12 +313,8 @@ def _render_container_unit(
             seen_destinations.add(resolved.container_path)
             lines.append(f"Volume={resolved.host_path}:{resolved.container_path}:{resolved.options}")
         else:
-            c_path = vol.get("container_path", "")
-            h_path = vol.get("host_path", "")
-            opts = vol.get("options", "rw")
-            if c_path and h_path:
-                seen_destinations.add(c_path)
-                lines.append(f"Volume={h_path}:{c_path}:{opts}")
+            # 門禁安全原則：Fail-Closed。Volume 驗證失敗嚴禁靜默放行原樣寫入 Quadlet
+            raise ValueError(f"[FAIL-CLOSED] Volume 驗證失敗，拒絕產生 Quadlet: {err or vol}")
 
     # 容器生命週期隔離門禁 (SPEC-015 / Ticket 03): 嚴禁 Host Adaptation 注入容器
     for ext_vol in (extra_volumes or []):
