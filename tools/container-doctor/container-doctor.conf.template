@@ -1,0 +1,11 @@
+# container-doctor site layout. Copy to /etc/container-doctor/container-doctor.conf and edit.
+# KEY=VALUE per line; environment variables of the same name take precedence.
+#CONTAINER_DOCTOR_OPT_ROOT=/opt/container-ctl
+#CONTAINER_DOCTOR_VAR_OPT_ROOT=/var/opt/container-ctl
+#CONTAINER_DOCTOR_ETC_OPT_ROOT=/etc/opt/container-ctl
+#CONTAINER_DOCTOR_PROJECTS_ROOT=/var/lib/container-ctl/projects
+#CONTAINER_DOCTOR_SHARED_ROOT=/var/lib/container-ctl/shared
+#CONTAINER_DOCTOR_RUNTIME_SUBDIR=container-ctl
+#CONTAINER_DOCTOR_ROUTING_DIR=/var/opt/container-ctl/runtime/routing
+#CONTAINER_DOCTOR_PROXY_SCRIPT=/opt/container-ctl/bin/container-proxy.py
+#CONTAINER_DOCTOR_SCOPES_DIRS=/opt/container-ctl/scopes

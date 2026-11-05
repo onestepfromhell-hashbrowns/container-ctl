@@ -1,0 +1,15 @@
+{
+  "_comment": "TODO: Replace all 'myapp' with actual project name",
+  "name": "myapp",
+  "mode": "prod",
+  "dockerfile": "Dockerfile.prod",
+  "workdir": "/opt/myapp",
+  "read_only_rootfs": true,
+  "volumes": [
+    "/etc/opt/myapp:/etc/opt/myapp",
+    "/var/opt/myapp:/var/opt/myapp",
+    "/run/myapp:/run/myapp",
+    "/var/log/myapp:/var/log/myapp"
+  ],
+  "ports": []
+}

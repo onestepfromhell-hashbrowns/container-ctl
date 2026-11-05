@@ -1,0 +1,5 @@
+# Herdr config for the containerised control plane. Mounted read-only at HERDR_CONFIG_PATH (/etc/herdr/config.toml).
+# Background update checks phone home to herdr.dev; the container must never fetch updates (image is pinned, digest-audited).
+[update]
+version_check = false
+manifest_check = false

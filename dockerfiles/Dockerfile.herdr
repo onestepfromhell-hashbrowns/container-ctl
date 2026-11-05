@@ -1,0 +1,24 @@
+# Dockerfile.herdr — containerised Herdr control plane (票 03).
+# Build context = the managed package dir ($CONTAINER_CTL_DATA_ROOT/packages/herdr), which holds the pinned
+# official release binary (bin/herdr, sha256 recorded in VERSION / .meta/herdr.meta.json). Nothing is downloaded or
+# installed at build time; the image is a single static binary.
+# Built only through `container-ctl image prepare-*` (never an ad-hoc podman build). Hardening (read-only rootfs,
+# DropCapability=ALL, MemoryMax=512M, User=1000, tmpfs /run/herdr, rootless podman socket) is declared by the Quadlet
+# contract (container-ctl/tests/test_herdr_quadlet_contract.py), not here.
+FROM scratch
+
+COPY --chmod=0755 bin/herdr /usr/local/bin/herdr
+
+# Non-root, matches the rootless-socket contract (uid 1000). No VOLUME: the socket dir is a host bind (SPEC §20.1).
+USER 1000:1000
+ENV HOME=/tmp \
+    HERDR_SOCKET_PATH=/run/herdr/herdr.sock \
+    HERDR_SOCKET=/run/herdr/herdr.sock \
+    HERDR_CONFIG_PATH=/etc/herdr/config.toml
+
+ENTRYPOINT ["/usr/local/bin/herdr"]
+# `herdr server` = headless server (verified: `herdr server --help` in a restricted probe container, herdr 0.9.3).
+# Runtime contract (verified by probe): HERDR_SOCKET_PATH is the socket env upstream reads (HERDR_SOCKET is ignored, kept for scope compat);
+# /etc/herdr/config.toml (from dockerfiles/herdr/config.toml, mount read-only) MUST disable [update] version_check/manifest_check;
+# health = `herdr api snapshot` (exits 1 "server_not_running" when down; there is NO `herdr health` subcommand).
+CMD ["server"]

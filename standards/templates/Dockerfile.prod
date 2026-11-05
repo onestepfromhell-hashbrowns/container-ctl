@@ -1,0 +1,52 @@
+# 離線依賴規範：pip install 一律 --no-index --find-links $CONTAINER_CTL_WHEELHOUSE_DIR（SPEC §21）；prepare-dev/prod 會檢查並 WARN。
+# Dockerfile.prod — Production Track
+# ─────────────────────────────────────────────────────────────────
+# 【替換指引】將所有 'myapp' 替換為實際專案名稱
+# 【注意】禁止加入 debugger、language server、git 等開發工具
+#
+# 設計原則（ADR-001 Dual-Track）：
+#   - 生產軌道透過 COPY 嵌入代碼，使用 FHS 標準路徑
+#   - APP_* 可不設（app_paths.* 預設即 FHS）；若在部署宣告顯式設定，值必須是 FHS 路徑，禁止 /workspace（SPEC §23.1）
+#   - 可寫路徑由部署宣告的 volumes/tmpfs 明確提供
+#   - 最小依賴原則：只安裝 runtime 所需的套件
+#
+# 使用方式：
+#   container-ctl build prod <project>   # 建構生產映像
+#   container-ctl deploy prod <project>  # 啟動生產容器
+# ─────────────────────────────────────────────────────────────────
+
+# TODO: Replace myapp with actual project name
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+# ── 最小 Runtime 依賴 ──────────────────────────────────────────
+# 僅安裝應用程式 runtime 所需套件，禁止安裝開發工具
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── 工作目錄（FHS 標準） ───────────────────────────────────────
+# TODO: Replace myapp with actual project name
+WORKDIR /opt/myapp
+
+# ── 複製應用程式代碼 ───────────────────────────────────────────
+# 使用 .dockerignore 排除開發產物（.git, .data, .scratch, tests/ 等）
+# TODO: Replace myapp with actual project name
+COPY . /opt/myapp
+
+# ── 非 root 執行 ─────────────────────────────────────────────
+# 代碼保持 root 擁有（容器內唯讀）；以固定非特權 UID 執行。
+USER 1000:1000
+
+# 若採用 --read-only rootfs，請在 .deploy/containers/*.json 逐一宣告
+# 持久資料 volumes 和短期執行目錄 tmpfs；不要用 Dockerfile VOLUME
+# 自動建立未受管理的匿名卷。
+
+# ── 不設定 APP_* ENV ──────────────────────────────────────────
+# 刻意留空：app_paths.* 的 FHS 預設值即為生產路徑
+# 若需顯式宣告，寫在部署宣告的 env（值須為 FHS 路徑）
+
+# ── 應用程式啟動入口 ───────────────────────────────────────────
+# TODO: Replace with actual startup command
+# CMD ["python3", "-m", "myapp"]

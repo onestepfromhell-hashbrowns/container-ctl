@@ -1,0 +1,54 @@
+# .dockerignore — Development and Production Build Exclusion Rules
+# ─────────────────────────────────────────────────────────────────
+# 適用於 Dockerfile.prod 的 COPY 指令
+# 確保開發產物、版本控制資料與機密不進入生產映像
+#
+# 使用方式：
+#   將此檔案複製至專案根目錄並命名為 .dockerignore
+#   如需調整排除規則，在專案 .dockerignore 中追加項目
+# ─────────────────────────────────────────────────────────────────
+
+# ── 版本控制 ──────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── 開發環境資料與快取 ─────────────────────────────────────────────
+.data/
+.scratch/
+.run/
+.logs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.npm/
+.yarn/
+
+# ── 測試與文件 ────────────────────────────────────────────────────
+tests/
+docs/
+*.md
+!README.md
+
+# ── IDE 與工具配置 ───────────────────────────────────────────────
+.vscode/
+.idea/
+*.code-workspace
+.agents/
+.gemini/
+
+# ── 開發配置 ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+.scan-path-refs.yaml
+
+# ── 建構工件 ─────────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/

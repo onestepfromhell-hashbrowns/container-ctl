@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.scratch/
+*.pre-tmpfix
+
+# release hygiene
+node_modules/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.DS_Store
+.idea/
+.vscode/
+*.swp

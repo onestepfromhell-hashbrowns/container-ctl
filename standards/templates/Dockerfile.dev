@@ -1,0 +1,59 @@
+# 離線依賴規範：pip install 一律 --no-index --find-links $CONTAINER_CTL_WHEELHOUSE_DIR（SPEC §21）；prepare-dev/prod 會檢查並 WARN。
+# Dockerfile.dev — Development Track
+# ─────────────────────────────────────────────────────────────────
+# 【替換指引】將所有 'myapp' 替換為實際專案名稱
+# 【注意】開發工具（debugger、language server）僅放此處，禁止放入 Dockerfile.prod
+#
+# 設計原則（ADR-001 Dual-Track）：
+#   - 開發軌道掛載宿主代碼（Live Mount），不含 COPY . /workspace
+#   - APP_* 環境變數覆寫為 /workspace/* 前綴，與生產 FHS 隔離
+#   - 開發容器應設 APP_* 以覆寫 app_paths.* 的預設 FHS 路徑
+#
+# 使用方式：
+#   container-ctl image prepare-dev <project> <service> <ref> --output-dir <dir>
+#   建置後審核 pinned JSON，再用 image publish-dev 發布；部署宣告提供 /workspace 掛載。
+# ─────────────────────────────────────────────────────────────────
+
+# TODO: Replace myapp with actual project name
+ARG BASE_IMAGE=ubuntu:24.04
+FROM ${BASE_IMAGE}
+
+# ── 開發環境基礎工具 ──────────────────────────────────────────
+# 保持精簡；語言特定工具在下方分層安裝
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    wget \
+    jq \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── 工作目錄（IDE / DevContainer / Agent 標準） ───────────────
+# 宿主代碼由 container-ctl Live Mount 掛載至 /workspace，
+# 無需 COPY . /workspace（此處刻意省略）
+WORKDIR /workspace
+
+# ── Dev Overlay Env（覆寫 app_paths.* 的 FHS 預設值） ────────
+# TODO: Replace myapp with actual project name
+ENV PROJECT_NAME=myapp
+ENV APP_ROOT=/workspace
+ENV APP_CONFIG_DIR=/workspace/config
+ENV APP_DATA_DIR=/workspace/.data
+ENV APP_RUNTIME_DIR=/workspace/.run
+ENV APP_LOG_DIR=/workspace/.logs
+
+# ── 預留：語言 Runtime 與開發工具安裝層 ──────────────────────
+# 取消下方注釋以安裝所需工具；請勿將這些工具放入 Dockerfile.prod
+#
+# Python debugger:
+# RUN pip3 install debugpy
+#
+# Node.js:
+# RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+#     && apt-get install -y nodejs
+#
+# Go:
+# RUN curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C /usr/local -xz
+# ENV PATH="$PATH:/usr/local/go/bin"

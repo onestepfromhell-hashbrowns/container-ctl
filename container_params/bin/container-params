@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Container Params - FHS Parameter & Configuration Governance CLI
+# ==============================================================================
+set -euo pipefail
+
+_here="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")/../.." && pwd)"   # package root (container-ctl)
+
+export PYTHONPATH="/run/ext/packages:/opt/ext/fhs/packages:/opt/ext/fhs/container-params:${_here}:${PYTHONPATH:-}"
+exec python3 -m container_params.cli "$@"

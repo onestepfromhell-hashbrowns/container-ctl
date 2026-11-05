@@ -1,0 +1,54 @@
+version: "1"
+# tests/path-resolver-compat/matrix.yaml
+# BDD 跨語言行為測試矩陣 — 測試案例定義
+# 所有語言實作（Python / Bash / Node.js / Go）必須對以下輸入產生 100% 一致的路徑解析輸出。
+
+test_cases:
+  - id: TC-01
+    description: "全部設定：APP_ROOT 覆寫優先"
+    env:
+      APP_ROOT: "/workspace"
+      PROJECT_NAME: "proj"
+    expect:
+      APP_ROOT: "/workspace"
+      APP_CONFIG_DIR: "/etc/opt/proj"
+      APP_DATA_DIR: "/var/opt/proj"
+      APP_RUNTIME_DIR: "/run/proj"
+      APP_LOG_DIR: "/var/log/proj"
+
+  - id: TC-02
+    description: "僅 PROJECT_NAME：全部使用 FHS 預設值"
+    env:
+      PROJECT_NAME: "proj"
+    expect:
+      APP_ROOT: "/opt/proj"
+      APP_CONFIG_DIR: "/etc/opt/proj"
+      APP_DATA_DIR: "/var/opt/proj"
+      APP_RUNTIME_DIR: "/run/proj"
+      APP_LOG_DIR: "/var/log/proj"
+
+  - id: TC-03
+    description: "全部未設定：使用 myapp 預設值"
+    env: {}
+    expect:
+      APP_ROOT: "/opt/myapp"
+      APP_CONFIG_DIR: "/etc/opt/myapp"
+      APP_DATA_DIR: "/var/opt/myapp"
+      APP_RUNTIME_DIR: "/run/myapp"
+      APP_LOG_DIR: "/var/log/myapp"
+
+  - id: TC-04
+    description: "顯式設定 FHS 路徑"
+    env:
+      APP_ROOT: "/opt/proj"
+      APP_CONFIG_DIR: "/etc/opt/proj"
+      APP_DATA_DIR: "/var/opt/proj"
+      APP_RUNTIME_DIR: "/run/proj"
+      APP_LOG_DIR: "/var/log/proj"
+      PROJECT_NAME: "proj"
+    expect:
+      APP_ROOT: "/opt/proj"
+      APP_CONFIG_DIR: "/etc/opt/proj"
+      APP_DATA_DIR: "/var/opt/proj"
+      APP_RUNTIME_DIR: "/run/proj"
+      APP_LOG_DIR: "/var/log/proj"

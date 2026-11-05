@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Container Doctor - environment reconciliation CLI (run inside the container being checked).
+set -euo pipefail
+
+_here="$(cd -- "$(dirname -- "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"   # tools/container-doctor
+
+export PYTHONPATH="${_here}:${PYTHONPATH:-}"
+exec python3 -m container_doctor "$@"

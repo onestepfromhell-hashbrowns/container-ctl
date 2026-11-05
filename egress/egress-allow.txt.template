@@ -1,0 +1,5 @@
+# Session egress allowlist (HTTPS 443 only). Add hosts only with evidence from session logs / proxy deny log.
+# Syntax: exact hostname, or `*.suffix` (matches the suffix itself and any subdomain).
+
+api.example.com
+*.example.org

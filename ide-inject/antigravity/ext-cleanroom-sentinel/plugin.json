@@ -1,0 +1,9 @@
+{
+    "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+    "name": "ext-cleanroom-sentinel",
+    "version": "1.0.0",
+    "description": "Extension cleanroom discovery sentinel",
+    "skills": [
+        "./"
+    ]
+}

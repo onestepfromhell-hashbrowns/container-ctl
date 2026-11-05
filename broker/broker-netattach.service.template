@@ -1,0 +1,19 @@
+# Install: substitute @CODE_DIR@ (dir holding net_broker.py) and @CONFIG_DIR@ (default /etc/container-ctl),
+# then place the result in /etc/systemd/system (system) or ~/.config/systemd/user (user).
+[Unit]
+Description=Dynamic Network Broker — attaches passive containers to the prod bridge network
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 @CODE_DIR@/net_broker.py \
+    --config @CONFIG_DIR@/broker-config.json
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=broker-netattach
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

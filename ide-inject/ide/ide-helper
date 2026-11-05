@@ -1,0 +1,11 @@
+#!/bin/sh
+# ide-helper — Antigravity IDE 容器輔助工具
+case "$1" in
+  status)
+    echo "Antigravity IDE runtime ready"
+    ;;
+  *)
+    echo "Usage: ide-helper status"
+    ;;
+esac
+exit 0

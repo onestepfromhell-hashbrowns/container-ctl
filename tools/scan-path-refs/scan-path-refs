@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""
+scan-path-refs — Static path reference scanner for site projects.
+
+用途：
+    掃描專案代碼中的硬編碼路徑引用，作為 CI/CD 門禁與 Git Pre-commit Hook 引擎。
+
+設計邊界：
+    本工具為 container-ctl 獨立建立，語義不同於
+    /opt/container-ctl/<site-utils>/scan_path_refs.py（掃描 site 基礎設施層路徑洩漏）。
+    禁止合併或擴展 site utilities 模組。
+
+相關文件：
+    ADR-003: Static Path Gate 決策記錄
+    tools/scan-path-refs/rules/core.yaml: 全域核心規則
+
+使用方式：
+    scan-path-refs [options] [--target <dir>]
+
+Exit codes:
+    0 — 通過（無違規）
+    1 — 發現違規
+    2 — 工具錯誤（配置錯誤、規則檔無法讀取等）
+"""
+
+from __future__ import annotations
+
+import argparse
+import fnmatch
+import re
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Optional
+
+try:
+    import yaml  # type: ignore[import-untyped]
+except ImportError:
+    yaml = None  # type: ignore[assignment]
+
+
+# ── Data Models ──────────────────────────────────────────────────────────────
+
+
+@dataclass
+class Rule:
+    """Represents a single scanning rule loaded from YAML."""
+
+    id: str
+    description: str
+    file_patterns: list[str]
+    severity: str = "error"
+    pattern: Optional[str] = None
+    pattern_regex: Optional[str] = None
+    exceptions: list[str] = field(default_factory=list)
+    _compiled_regex: Optional[re.Pattern[str]] = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.pattern is not None:
+            # Literal pattern: escape to regex
+            self._compiled_regex = re.compile(re.escape(self.pattern))
+        elif self.pattern_regex is not None:
+            self._compiled_regex = re.compile(self.pattern_regex)
+        else:
+            raise ValueError(f"Rule {self.id}: must have 'pattern' or 'pattern_regex'")
+
+    def matches_file(self, filepath: str) -> bool:
+        """Return True if this rule applies to the given filepath."""
+        return any(
+            fnmatch.fnmatch(filepath, pat) if "/" in pat
+            else fnmatch.fnmatch(Path(filepath).name, pat)
+            for pat in self.file_patterns
+        )
+
+    def is_excepted(self, filepath: str) -> bool:
+        """Return True if the filepath is whitelisted by any exception glob."""
+        name = Path(filepath).name
+        return any(
+            fnmatch.fnmatch(filepath, exc) or fnmatch.fnmatch(name, exc)
+            for exc in self.exceptions
+        )
+
+
+    def find_violations(self, content: str) -> list[tuple[int, str]]:
+        """Return list of (line_number, line_content) tuples that violate this rule."""
+        assert self._compiled_regex is not None
+        results = []
+        for lineno, line in enumerate(content.splitlines(), start=1):
+            if self._compiled_regex.search(line):
+                results.append((lineno, line))
+        return results
+
+
+@dataclass
+class Violation:
+    """Represents a single detected violation."""
+
+    filepath: str
+    lineno: int
+    rule_id: str
+    pattern: str
+    line_content: str
+
+    def format(self) -> str:
+        """Return a formatted violation string for stdout."""
+        return (
+            f"{self.filepath}:{self.lineno}: "
+            f"[VIOLATION] {self.rule_id} — {self.pattern!r} found\n"
+            f"  {self.line_content.strip()}"
+        )
+
+
+# ── YAML Loader ──────────────────────────────────────────────────────────────
+
+
+def _load_yaml_rules(rules_file: Path) -> list[Rule]:
+    """Load rules from a YAML file. Requires PyYAML."""
+    if yaml is None:
+        _die(
+            "PyYAML is required to load rule files. Install with: pip3 install pyyaml",
+            exit_code=2,
+        )
+
+    try:
+        raw = yaml.safe_load(rules_file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        _die(f"Rules file not found: {rules_file}", exit_code=2)
+    except yaml.YAMLError as exc:
+        _die(f"YAML parse error in {rules_file}: {exc}", exit_code=2)
+
+    rules_data = raw.get("rules", [])
+    rules = []
+    for entry in rules_data:
+        try:
+            rules.append(
+                Rule(
+                    id=entry["id"],
+                    description=entry.get("description", ""),
+                    file_patterns=entry.get("file_patterns", []),
+                    severity=entry.get("severity", "error"),
+                    pattern=entry.get("pattern"),
+                    pattern_regex=entry.get("pattern_regex"),
+                    exceptions=entry.get("exceptions", []),
+                )
+            )
+        except (KeyError, ValueError) as exc:
+            _die(f"Invalid rule entry in {rules_file}: {entry!r} — {exc}", exit_code=2)
+    return rules
+
+
+def _merge_project_exceptions(rules: list[Rule], project_config: Path) -> list[Rule]:
+    """Merge project-level exception overrides into core rules (additive only)."""
+    if yaml is None or not project_config.exists():
+        return rules
+
+    try:
+        raw = yaml.safe_load(project_config.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        _die(f"YAML parse error in {project_config}: {exc}", exit_code=2)
+
+    overrides = raw.get("exceptions", [])
+    rules_by_id = {r.id: r for r in rules}
+
+    for override in overrides:
+        rule_id = override.get("rule_id")
+        extra_paths = override.get("paths", [])
+        if rule_id in rules_by_id:
+            rules_by_id[rule_id].exceptions.extend(extra_paths)
+
+    return list(rules_by_id.values())
+
+
+# ── Scanner ───────────────────────────────────────────────────────────────────
+
+
+def _collect_files(target: Path, extensions: list[str]) -> list[Path]:
+    """Collect configured source files and extensionless workspace scripts."""
+    ext_set = {f".{e.lstrip('.')}" for e in extensions}
+    files: list[Path] = []
+    for path in sorted(target.rglob("*")):
+        relative = path.relative_to(target)
+        workspace_script = (
+            not path.suffix
+            and (relative.parts[0] in {"bin", "scripts"} or path.name in {"control.sh", "entrypoint.sh"})
+        )
+        if path.is_file() and (path.suffix in ext_set or workspace_script):
+            files.append(path)
+    return files
+
+
+def _scan(
+    target: Path,
+    rules: list[Rule],
+    extensions: list[str],
+    root: Path,
+) -> list[Violation]:
+    """Scan all files and return violations."""
+    files = _collect_files(target, extensions)
+    violations: list[Violation] = []
+
+    for filepath in files:
+        rel_path = str(filepath.relative_to(root))
+        try:
+            content = filepath.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        for rule in rules:
+            if not rule.matches_file(rel_path) and not rule.matches_file(filepath.name):
+                continue
+            if rule.is_excepted(rel_path):
+                continue
+
+            matches = rule.find_violations(content)
+            for lineno, line in matches:
+                pattern_str = rule.pattern or rule.pattern_regex or ""
+                violations.append(
+                    Violation(
+                        filepath=rel_path,
+                        lineno=lineno,
+                        rule_id=rule.id,
+                        pattern=pattern_str,
+                        line_content=line,
+                    )
+                )
+
+    return violations
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+
+def _die(msg: str, exit_code: int = 2) -> None:
+    print(f"scan-path-refs: error: {msg}", file=sys.stderr)
+    sys.exit(exit_code)
+
+
+def _tool_root() -> Path:
+    """Return the directory where this script lives."""
+    return Path(__file__).resolve().parent
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="scan-path-refs",
+        description=(
+            "Static path reference scanner for site projects.\n"
+            "Detects hardcoded /workspace, /opt/<proj>, and /home/<user> paths."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--config",
+        metavar="FILE",
+        default=".scan-path-refs.yaml",
+        help="Project-level exception config (default: .scan-path-refs.yaml)",
+    )
+    parser.add_argument(
+        "--rules",
+        metavar="FILE",
+        default=None,
+        help="Core rules YAML override (default: <tool-dir>/rules/core.yaml)",
+    )
+    parser.add_argument(
+        "--target",
+        metavar="DIR",
+        default=".",
+        help="Directory to scan (default: current directory)",
+    )
+    parser.add_argument(
+        "--ext",
+        metavar="EXT[,EXT,...]",
+        default="py,sh,js,ts,go,yaml,json,toml,container",
+        help="Comma-separated file extensions to scan (default: py,sh,js,ts,go,yaml,json,toml,container)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Output violations but exit with code 0 (do not block CI)",
+    )
+    return parser
+
+
+def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    # Resolve paths
+    target_dir = Path(args.target).resolve()
+    if not target_dir.is_dir():
+        _die(f"--target is not a directory: {target_dir}", exit_code=2)
+
+    # Load core rules
+    rules_file = Path(args.rules) if args.rules else _tool_root() / "rules" / "core.yaml"
+    rules = _load_yaml_rules(rules_file)
+
+    # Merge project-level exception config
+    project_config = target_dir / args.config
+    rules = _merge_project_exceptions(rules, project_config)
+
+    # Parse extensions
+    extensions = [e.strip() for e in args.ext.split(",") if e.strip()]
+
+    # Scan
+    violations = _scan(target=target_dir, rules=rules, extensions=extensions, root=target_dir)
+
+    # Output
+    if violations:
+        for v in violations:
+            print(v.format())
+        print(
+            f"\nscan-path-refs: {len(violations)} violation(s) found in {target_dir}",
+            file=sys.stderr,
+        )
+        if not args.dry_run:
+            sys.exit(1)
+    else:
+        print(f"scan-path-refs: OK — no violations found in {target_dir}")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

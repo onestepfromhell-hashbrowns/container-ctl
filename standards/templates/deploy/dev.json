@@ -1,0 +1,41 @@
+{
+  "_comment": "TODO: Replace all 'myapp' with actual project name",
+  "name": "myapp-dev",
+  "mode": "dev",
+  "dockerfile": "Dockerfile.dev",
+  "workdir": "/workspace",
+  "env": {
+    "PROJECT_NAME": "myapp",
+    "APP_ROOT": "/workspace",
+    "APP_CONFIG_DIR": "/workspace/config",
+    "APP_DATA_DIR": "/workspace/.data",
+    "APP_RUNTIME_DIR": "/workspace/.run",
+    "APP_LOG_DIR": "/workspace/.logs"
+  },
+  "mounts": [
+    {
+      "type": "bind",
+      "source": "{{HOST_REPO_PATH}}",
+      "target": "/workspace"
+    },
+    {
+      "type": "bind",
+      "source": "{{GIT_REPOS_DIR}}/{{PROJECT_NAME}}.git",
+      "target": "{{GIT_REPOS_DIR}}/{{PROJECT_NAME}}.git",
+      "options": "rw"
+    },
+    {
+      "type": "bind",
+      "source": "{{AGENT_BRAINS_DIR}}/{{PROJECT_NAME}}/brain",
+      "target": "/opt/ext/fhs/antigravity/brain",
+      "options": "rw"
+    },
+    {
+      "type": "bind",
+      "source": "{{AGENT_BRAINS_DIR}}/{{PROJECT_NAME}}/conversations",
+      "target": "/opt/ext/fhs/antigravity/conversations",
+      "options": "rw"
+    }
+  ],
+  "ports": []
+}

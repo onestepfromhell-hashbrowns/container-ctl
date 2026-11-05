@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+import os
+import sys
+from pathlib import Path
+
+# bootstrap runtime defense (vendored: no dependency on any site utility package)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from container_ctl.runtime_prelude import bootstrap_runtime_defense
+bootstrap_runtime_defense()
+
+from container_ctl.cli.main import main
+
+if __name__ == "__main__":
+    main()
+

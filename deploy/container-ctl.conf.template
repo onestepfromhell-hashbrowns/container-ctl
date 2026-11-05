@@ -1,0 +1,24 @@
+# container-ctl 站點設定(KEY=VALUE,不做任何求值)。複製為 /etc/container-ctl/container-ctl.conf 才生效。
+# 優先序:環境變數 > 此檔 > 原生 FHS 預設。套件本身不含任何站點路徑。
+# 查找順序:$CONTAINER_CTL_CONFIG > /etc/container-ctl/container-ctl.conf > ~/.config/container-ctl/container-ctl.conf
+#
+# --- 原生 FHS 預設(不設定時;取消註解並改值即覆寫) ---
+#CONTAINER_CTL_DATA_ROOT=/var/lib/container-ctl      # 其下:services deploys git-repos config-repos worktrees environments scopes volumes
+#                                                    #        volume-backups db-backups pg-backups wheelhouse oci-store projects
+#CONTAINER_CTL_HERDR_SOCKET_ROOT=/run/container-ctl/herdr
+# 護欄預設只含 DATA_ROOT;站點把自己的程式碼/資料根加進來(':' 分隔):
+#CONTAINER_CTL_MOUNT_SRC_PREFIXES  CONTAINER_CTL_MOUNT_READ_ROOTS  CONTAINER_CTL_AUTO_CREATE_PREFIXES
+#CONTAINER_CTL_FORBIDDEN_WRITE_PATHS  CONTAINER_CTL_FORBIDDEN_MOUNT_PREFIXES  CONTAINER_CTL_PREFLIGHT_MOUNTS
+#
+# 預設環境名(選用)。未設定＝沒有預設環境,只套用 base 宣告;--env 仍可逐次指定。
+# `host check` 需要環境,未指定時會明確報錯。
+#CONTAINER_CTL_ENV=
+#
+# 標籤命名空間(選用,預設 container-ctl)。寫入與讀取的標籤:
+#   <NS>.governance.id  <NS>.portfwd.listen  org.<NS>.{project,service,version,release,image-scope,...}
+# 以及 Dockerfile 指示 `# <NS>: squash-all`。已有既有標籤的站點設為原本的值即可沿用。
+#CONTAINER_CTL_LABEL_NS=container-ctl
+#
+# 以下只從環境變數讀取:
+#   CONTAINER_CTL_HOST_AGENT       host-agent 的 UDS 絕對路徑(控制面容器模式;存在即啟用)
+#   CONTAINER_CTL_DEPLOYMENTS_DB   lifecycle_adapter 使用的部署 DB(預設 CONTAINER_CTL_STATE_DB)

@@ -1,0 +1,12 @@
+# templates/scan-path-refs.yaml
+# 複製為 <project>/.scan-path-refs.yaml 後使用
+# 專案層路徑掃描例外設定
+version: "1"
+extends: "container-ctl/tools/scan-path-refs/rules/core.yaml"
+exceptions: []
+  # 範例：
+  # - rule_id: R-002
+  #   paths:
+  #     - "tests/fixtures/**"
+  #     - "tests/path-resolver-compat/**"
+  #   reason: "測試 fixture 允許包含 /workspace 路徑字串"

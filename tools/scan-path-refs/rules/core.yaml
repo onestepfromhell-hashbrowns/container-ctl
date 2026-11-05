@@ -1,0 +1,105 @@
+version: "1"
+# tools/scan-path-refs/rules/core.yaml
+# 全域核心違規規則 — container-ctl
+#
+# 規則設計原則：
+#   - 此處的規則構成「不可被例外覆寫」的底層安全閘控。
+#   - 專案層 .scan-path-refs.yaml 只能追加 exceptions，不能降低 severity 或停用規則。
+#   - 規則 ID 格式：R-NNN，不重複，不可刪除（可標記 deprecated）。
+#
+# 相關文件：
+#   - ADR-003: Static Path Gate 決策記錄
+#   - ADR-002: APP_* 命名規範
+
+rules:
+  - id: R-001
+    description: "生產配置不得含 /workspace（應為 FHS 路徑）"
+    pattern: "/workspace"
+    file_patterns:
+      - "*.container"
+      - "*.json"
+      - "*.yaml"
+      - "*.toml"
+    exceptions:
+      - "Dockerfile.dev"
+      - ".deploy/containers/dev.json"
+      - "templates/deploy/dev.json"
+      - "templates/scan-path-refs.yaml"
+      - "dev.json"
+      - "scan-path-refs.yaml"
+      - "docs/**"
+      - "*.md"
+      - "tools/scan-path-refs/tests/**"
+    severity: error
+
+  - id: R-002
+    description: "應用代碼不得硬編碼 /workspace 路徑（應透過 APP_* 環境變數讀取）"
+    pattern: "/workspace"
+    file_patterns:
+      - "*.py"
+      - "*.sh"
+      - "*.js"
+      - "*.ts"
+      - "*.go"
+    exceptions:
+      - "tests/fixtures/**"
+      - "tests/path-resolver-compat/**"
+      - "tools/scan-path-refs/tests/**"
+      - "src/lib/app_paths.*"
+      - "app_paths.*"
+    severity: error
+
+  - id: R-003
+    description: "應用代碼不得硬編碼 /opt/<proj> 路徑（應透過 APP_ROOT 環境變數讀取；/var/opt/ 與 /etc/opt/ 例外）"
+    pattern_regex: "(?<![/a-zA-Z])/opt/[a-z][a-z0-9_-]+"
+    file_patterns:
+      - "*.py"
+      - "*.sh"
+      - "*.js"
+      - "*.ts"
+      - "*.go"
+    exceptions:
+      - "src/lib/app_paths.*"
+      - "app_paths.*"
+      - "tests/**"
+      - "tools/scan-path-refs/tests/**"
+    severity: error
+
+  - id: R-004
+    description: "生產 Quadlet 不得含 /home/<user>（可移植性要求，繼承全域規則）"
+    pattern_regex: "/home/[a-z][a-z0-9_-]+"
+    file_patterns:
+      - "*.container"
+      - "*.network"
+      - "*.volume"
+    severity: error
+
+  - id: R-005
+    description: "容器工作區腳本不得呼叫主機編排命令 container-ctl"
+    pattern_regex: "(?<![A-Za-z0-9_-])container-ctl(?=$|[\\s;&|])"
+    file_patterns:
+      - "bin/*"
+      - "scripts/*"
+      - "control.sh"
+      - "entrypoint.sh"
+    severity: error
+
+  - id: R-006
+    description: "容器工作區腳本不得引用主機 /opt/container-ctl 路徑"
+    pattern_regex: "(?<!/var)/opt/container-ctl"  # 排除合法的 prod 持久化目錄 /var/opt/container-ctl
+    file_patterns:
+      - "bin/*"
+      - "scripts/*"
+      - "control.sh"
+      - "entrypoint.sh"
+    severity: error
+
+  - id: R-007
+    description: "容器工作區腳本不得引用主機使用者安裝路徑"
+    pattern_regex: "/home/[^/]+/\\.local/bin/container-control"
+    file_patterns:
+      - "bin/*"
+      - "scripts/*"
+      - "control.sh"
+      - "entrypoint.sh"
+    severity: error
